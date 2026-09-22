@@ -39,6 +39,10 @@
 6. **Authentic Kosher Food Blog Recipe Search**
    - Grounded in authentic, tested holiday recipes directly retrieved from premier kosher culinary creators: **Melinda Strauss**, **Naomi Nachman (The Aussie Gourmet)**, and **Ruhama Shitrit (Ruhama's Food)**.
 
+7. **AI Dish Visuals & Blech Layout Diagrams (gemini-3.1-flash-lite-image)**
+   - Generates appetizing food photography of finished festive recipes, plated presentation previews, and spatial warming drawer / blech heat-zone diagrams using `gemini-3.1-flash-lite-image` in the `global` region.
+   - Saves generated visuals as session artifacts in the ADK Playground's Artifacts panel and uploads directly to a public Cloud Storage bucket (`yomtov-rag-qwiklabs-gcp-04-ded35b1abcfb`), returning public HTTPS URLs for immediate visual embedding.
+
 ---
 
 ## ☁️ Google Cloud & AI Platform Architecture
@@ -47,10 +51,10 @@
 |---|---|
 | **Vertex AI Memory Bank** | Long-term cross-session memory service (`PreloadMemoryTool` & after-agent callbacks) storing persistent household profiles, guest allergies, past holiday menus, and 3-criteria dish feedback. |
 | **Google Cloud Firestore (Native)** | High-performance NoSQL database storing structured holiday recipes, warming guidelines, evaporation compensation parameters, user ratings, and categorized grocery lists. |
-| **Google Cloud Storage (GCS)** | Object storage bucket repository storing extracted holiday recipe datasets and knowledge artifacts for corpus ingestion. |
+| **Google Cloud Storage (GCS)** | Public object storage bucket repository (`yomtov-rag-qwiklabs-gcp-04-ded35b1abcfb`) hosting recipe datasets, RAG knowledge files, and AI-generated recipe/blech imagery. |
 | **Vertex AI RAG Engine** | Vector Search RAG corpus indexed with 38 authentic kosher recipes from top culinary blogs, queried via semantic retrieval tool `search_recipe_rag_corpus`. |
+| **Image Generation (gemini-3.1-flash-lite-image)** | Multimodal image generation in the `global` region producing dish photography and blech diagrams, saving session artifacts in ADK and uploading to Cloud Storage. |
 | **A2UI (Agent-to-User Interface)** | Interactive UI card specifications designed to render multi-day meal timelines, blech layout maps, and recipe step cards in the web frontend. |
-| **Image Generation (Vertex AI Imagen)** | Architecture for generating visual plating presentations and spatial 2D top-down blech heat-zone layout diagrams. |
 | **Agent Engine / Reasoning Engine** | Managed deployment runtime hosting the ADK agent with full A2A Protocol compliance and enterprise telemetry. |
 
 ---
@@ -67,6 +71,7 @@ yomtov-kitchen-concierge/
 │       ├── firestore_tools.py          # Firestore database tools (search, save, ratings)
 │       ├── planning_tools.py           # Hebcal API, blech scheduler, grocery scaler
 │       ├── rag_tools.py                # Vertex AI RAG retrieval tool
+│       ├── image_tools.py              # gemini-3.1-flash-lite-image generator & GCS uploader
 │       ├── services.py                 # Client initialization (Memory Bank, Firestore)
 │       └── reasoning_engine_adapter.py # Agent Engine runtime adapter
 ├── data/

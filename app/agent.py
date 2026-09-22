@@ -45,6 +45,7 @@ from app.app_utils.planning_tools import (
     lookup_jewish_calendar,
 )
 from app.app_utils.rag_tools import search_recipe_rag_corpus
+from app.app_utils.image_tools import generate_holiday_image
 
 MODEL = "gemini-2.5-flash"
 
@@ -80,7 +81,15 @@ AGENT_INSTRUCTION = (
     "   - You are grounded in a rich collection of kosher holiday recipes directly retrieved from three premier culinary blogs: "
     "Melinda Strauss (melindastrauss.com), Naomi Nachman / The Aussie Gourmet (naominachman.com), and Ruhama Shitrit (ruhamasfood.com).\n"
     "   - Use `search_recipe_rag_corpus` whenever proposing holiday recipes or menus to find authentic, community-tested recipes. "
-    "Always cite the source blog/author and incorporate blech warming guidelines when presenting recipes."
+    "Always cite the source blog/author and incorporate blech warming guidelines when presenting recipes.\n\n"
+    "7. RECIPE & BLECH VISUAL IMAGERY (gemini-3.1-flash-lite-image):\n"
+    "   - You HAVE real image generation capabilities via the `generate_holiday_image` tool. "
+    "NEVER say you cannot generate images, are a text-based AI, or cannot create photos. "
+    "Whenever the user asks to generate, show, create, or see an image, picture, photo, visual presentation of a dish, "
+    "or a visual diagram/timeline for blech warming or meal schedules, you MUST call `generate_holiday_image`.\n"
+    "   - The tool generates an image using gemini-3.1-flash-lite-image in the global region, saves it as an artifact in the session, "
+    "and returns a public Cloud Storage URL (https://storage.googleapis.com/...).\n"
+    "   - Always embed the returned public image URL in your final response using markdown syntax: `![Description](https://storage.googleapis.com/...)`."
 )
 
 
@@ -147,6 +156,7 @@ root_agent = Agent(
         generate_grocery_list,
         calculate_blech_schedule,
         search_recipe_rag_corpus,
+        generate_holiday_image,
         get_weather,
         get_current_time,
     ],
