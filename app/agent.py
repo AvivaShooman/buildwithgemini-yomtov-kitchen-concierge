@@ -229,9 +229,12 @@ def get_current_time(query: str) -> str:
 
 SANDBOX_RESOURCE_NAME = os.environ.get(
     "SANDBOX_RESOURCE_NAME",
-    "projects/821049907373/locations/us-east1/reasoningEngines/3128499808138952704/sandboxEnvironments/7109864397664681984",
+    "projects/821049907373/locations/us-east1/reasoningEngines/4448054498958508032/sandboxEnvironments/804824919345987584",
 )
-AGENT_ENGINE_RESOURCE_NAME = "projects/821049907373/locations/us-east1/reasoningEngines/3128499808138952704"
+AGENT_ENGINE_RESOURCE_NAME = os.environ.get(
+    "AGENT_ENGINE_RESOURCE_NAME",
+    "projects/821049907373/locations/us-east1/reasoningEngines/4448054498958508032",
+)
 
 sandbox_executor = AgentEngineSandboxCodeExecutor(
     sandbox_resource_name=SANDBOX_RESOURCE_NAME,
