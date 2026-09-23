@@ -105,6 +105,7 @@ from app.app_utils.rag_tools import (
     consult_halachic_culinary_docs,
     search_recipe_rag_corpus,
 )
+from app.app_utils.web_recipe_tools import search_web_for_kosher_recipes
 from app.app_utils.image_tools import generate_holiday_image
 
 MODEL = "gemini-2.5-flash"
@@ -133,9 +134,16 @@ AGENT_ROLE_DESCRIPTION = (
     "   - Use `get_firestore_recipe` to fetch full ingredients, prep steps, and blech guidelines for a specific recipe.\n"
     "   - Use `save_firestore_recipe` to store newly extracted or customized holiday recipes.\n"
     "   - Use `update_firestore_recipe_rating` to log 1-5 ratings across the 3 criteria directly into the Firestore catalog.\n\n"
-    "5. JEWISH CALENDAR, BLECH SCHEDULING & GROCERY LISTS:\n"
-    "   - Use `lookup_jewish_calendar` to get real upcoming holiday dates, candle lighting/Havdalah times for a city/ZIP code, and detect Shabbat-Yom Tov overlaps (where Shabbat cooking restrictions strictly supersede Yom Tov allowances) and Chol HaMoed intervals.\n"
-    "   - Use `calculate_blech_schedule` to compute warming hours, physical blech zone placement (Perimeter gentle keep-warm vs Center direct heat), liquid evaporation compensation (+1/2 to +1 cup broth), and candle lighting halachic deadlines.\n"
+    "5. JEWISH CALENDAR, BLECH & WARMING DRAWER STAGING SCHEDULING & GROCERY LISTS:\n"
+    "   - Use `lookup_jewish_calendar` to get real upcoming holiday dates, candle lighting/Havdalah times for a city/ZIP code and year, and detect Shabbat-Yom Tov overlaps and Chol HaMoed intervals.\n"
+    "   - Use candle lighting time, geographic location (city or ZIP code), and year (e.g., 2026) to make the plan of when to put certain dishes on the blech or in the warming drawer. Always call `calculate_blech_schedule(dishes=..., candle_lighting_time=..., location=..., year=..., equipment=...)`.\n"
+    "   - Present a chronological pre-Chag staging timeline:\n"
+    "     * 90 mins before candle lighting: Pre-heat blech (medium-low) and/or warming drawer (180°F–200°F Sabbath Mode).\n"
+    "     * 45 mins before candle lighting: Bring soups/stews/braises to a rolling boil (Ma'achal Ben Drusai), add liquid compensation (+1/2 to +1 cup broth), crimp foil tightly.\n"
+    "     * 25 mins before candle lighting: Stage pots onto designated zones (Center/Mid-Blech for boiling items; Perimeter Blech or Warming Drawer for kugels, poultry, and delicate sides).\n"
+    "     * Exact Candle Lighting Cutoff: Halachic deadline! Knobs covered, warming drawer locked, zero adjustments permitted once Shabbat begins.\n"
+    "   - When presenting meal plans, always link each recipe: provide a markdown link `[Recipe Name](url)` to its blog/source URL or reference.\n"
+    "   - When asked to share, give, or explain a recipe, ALWAYS output the recipe directly in the chat in clean, comprehensive plain text markdown (Title, Source Link, Kashrut designation, prep/cook time, ingredients list with quantities, step-by-step instructions, and blech/warming drawer holding tips) so the user can easily read, copy, and print it!\n"
     "   - Use `generate_grocery_list` to consolidate ingredients across chosen recipes, scale quantities by guest headcount, categorize into supermarket aisles, and save the list to Firestore.\n\n"
     "6. AUTHENTIC JEWISH RECIPE BLOG RAG CORPUS:\n"
     "   - You are grounded in a rich collection of kosher holiday recipes directly retrieved from three premier culinary blogs: "
@@ -162,7 +170,15 @@ AGENT_ROLE_DESCRIPTION = (
     "how to handle when Shabbat coincides with Yom Tov (Shabbat restrictions take 100% precedence, zero cooking or flame transfer), "
     "Eruv Tavshilin procedures and blessings, blech rules (Shehiya, Chazarah 5 conditions, Hatmana prohibitions), certified Sabbath Mode warming drawers, "
     "or the prohibition of Hachanah (preparing food or setting tables on Yom Tov Day 1 for Day 2 before Tzeit HaKochavim)—"
-    "YOU MUST call `consult_halachic_culinary_docs` to ground your answers in authoritative halachic rulings and cite the principles."
+    "YOU MUST call `consult_halachic_culinary_docs` to ground your answers in authoritative halachic rulings and cite the principles.\n\n"
+    "10. KOSHER WEB RECIPE SEARCH TOOL (search_web_for_kosher_recipes):\n"
+    "   - If you do not have a saved recipe in the Firestore database or the RAG blog corpus matching the user's requirements, YOU MUST call `search_web_for_kosher_recipes` to search the web for an authentic recipe.\n"
+    "   - Strict Halachic Kashrut Enforcement:\n"
+    "     * Strictly forbid mixing meat and milk (Basar b'Chalav). If a meat dish contains dairy, pareve substitutes (margarine, olive oil, oat milk, coconut cream) must be provided.\n"
+    "     * Only kosher animals and birds (beef, lamb, poultry). Strictly reject pork, bacon, ham, lard, and forbidden meats.\n"
+    "     * Only kosher fish with both fins and scales (salmon, cod, halibut, trout). Strictly reject shellfish, shrimp, crab, lobster, calamari, eel, and catfish.\n"
+    "     * Meat and fish are never cooked or served together on the same plate (Pesachim 76b).\n"
+    "     * Evaluates 18h+ blech and warming drawer durability."
 )
 
 schema_manager = A2uiSchemaManager(
@@ -172,26 +188,20 @@ schema_manager = A2uiSchemaManager(
 
 AGENT_INSTRUCTION = schema_manager.generate_system_prompt(
     role_description=AGENT_ROLE_DESCRIPTION,
-    workflow_description="Analyze the request and return structured UI when appropriate.",
+    workflow_description="Analyze the request and return structured UI or plain text when appropriate.",
     ui_description=(
-        "Generate rich, clean A2UI surfaces using: Card, Column, Row, Text, Divider, and Image.\n"
-        "Never nest a Card inside a Card.\n"
-        "Do not use Table, Heading, Buttons, actions, or forms.\n"
+        "When asked to share, give, explain, or provide a recipe, output the complete recipe directly in the chat in formatted plain text (markdown) "
+        "with title, clickable source link, kashrut status, prep/cook time, ingredient quantities, step-by-step instructions, and blech/warming drawer holding tips so the user can easily read, copy, and print it.\n"
+        "When presenting dedicated blech schedules, you may generate rich, clean A2UI surfaces using: Card, Column, Row, Text, Divider, and Image.\n"
+        "Never nest a Card inside a Card. Do not use Table, Heading, Buttons, actions, or forms.\n"
         "Use the usageHint property ('h1', 'h2', 'h3', 'caption', 'body') for typography hierarchy.\n"
-        "1. ADVANCED RECIPE CARDS: When presenting a recipe or dish recommendation, build a structured A2UI Card:\n"
-        "   - Top Text with usageHint: 'h2' containing the Recipe Name.\n"
-        "   - A Row with badge-style Text items: 'Meat'/'Dairy'/'Pareve' | '⏱️ 18h+ Blech Safe'/'Fresh Only' | prep time.\n"
-        "   - A Divider.\n"
-        "   - A Column of ingredient Text lines.\n"
-        "   - A Column of prep instructions and blech positioning instructions.\n"
-        "   - An Image component if a public https URL is returned by the image tool.\n"
-        "2. BLECH & WARMING SCHEDULE CARDS: When presenting a blech schedule, build a structured A2UI Card:\n"
+        "BLECH & WARMING SCHEDULE CARDS: When presenting a blech schedule card:\n"
         "   - Top Text with usageHint: 'h2' ('Blech Warming Schedule').\n"
         "   - Subtitle Text with usageHint: 'caption' ('All dishes must be placed before candle lighting').\n"
         "   - A Divider.\n"
         "   - Rows for each dish showing: Dish Name | Recommended Zone (e.g. '🔥 Center Zone (Boil)' or '♨️ Perimeter Zone (Keep Warm)') | Warming Hours | Liquid Adjustment.\n"
         "   - A Divider and a footer Text summarizing halachic knob covering and Chazarah reminders.\n"
-        "Output ONLY the raw A2UI JSON array — no prose, and never wrap it in <a2a_datapart_json> tags or 'kind'/'data'/'metadata' objects."
+        "When returning A2UI, output the raw A2UI JSON array without wrapping in <a2a_datapart_json> tags."
     ),
     include_schema=True,
     include_examples=True,
@@ -310,6 +320,7 @@ root_agent = Agent(
         calculate_blech_schedule,
         consult_halachic_culinary_docs,
         search_recipe_rag_corpus,
+        search_web_for_kosher_recipes,
         generate_holiday_image,
         run_sandbox_code,
         get_weather,

@@ -16,7 +16,7 @@
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -219,21 +219,79 @@ async def generate_grocery_list(
     return grocery_data
 
 
+def _parse_time_str(t_str: str) -> datetime:
+    """Parse time string into datetime on a dummy date."""
+    for fmt in ("%H:%M", "%I:%M %p", "%I:%M%p", "%H:%M:%S"):
+        try:
+            t = datetime.strptime(t_str.strip(), fmt).time()
+            return datetime(2026, 1, 1, t.hour, t.minute)
+        except ValueError:
+            pass
+    return datetime(2026, 1, 1, 18, 15)
+
+
 def calculate_blech_schedule(
     dishes: list[dict[str, Any]],
-    candle_lighting_time: str,
-    meal_times: list[dict[str, str]],
+    candle_lighting_time: str | None = None,
+    location: str | None = None,
+    year: int | None = None,
+    equipment: str = "both",
+    meal_times: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """Calculate blech placement timeline, heat zones, and liquid evaporation compensation.
+    """Calculate blech and warming drawer placement timeline, staging plan, heat zones, and evaporation compensation.
+
+    Uses candle lighting time, geographic location, and calendar year to generate a precise pre-Chag staging schedule.
 
     Args:
         dishes: List of dish dicts, each with keys 'name', 'max_warming_hours' (int), and 'meal' (str).
-        candle_lighting_time: Time of candle lighting (e.g. '18:53' or '6:53 PM').
-        meal_times: List of meals and planned eating times (e.g. [{'meal': 'Friday Night Dinner', 'time': '20:00'}, {'meal': 'Shabbat Lunch', 'time': '12:30'}]).
+        candle_lighting_time: Optional time of candle lighting (e.g. '18:13' or '6:13 PM').
+        location: Optional location name or US ZIP code (e.g. 'Brooklyn, NY' or '11213').
+        year: Optional calendar year (e.g. 2026).
+        equipment: Appliance setup ('blech', 'warming_drawer', or 'both').
+        meal_times: Optional list of meals and planned eating times.
 
     Returns:
-        Structured blech schedule with physical zones, evaporation compensation, and halachic cutoffs.
+        Structured blech & warming drawer staging schedule with timeline, physical zones, and halachic cutoffs.
     """
+    # 1. Resolve candle lighting time using location and year if not provided
+    resolved_candle_time = candle_lighting_time
+    if not resolved_candle_time:
+        if location:
+            # Check for 5-digit zip in location
+            zip_match = re.search(r"\b\d{5}\b", location)
+            zip_val = zip_match.group(0) if zip_match else ("11213" if "brooklyn" in location.lower() or "ny" in location.lower() else None)
+            target_year = year or 2026
+            if zip_val:
+                try:
+                    with httpx.Client(timeout=4.0) as client:
+                        resp = client.get(
+                            "https://www.hebcal.com/hebcal",
+                            params={"v": "1", "cfg": "json", "c": "on", "geo": "zip", "zip": zip_val, "year": str(target_year)}
+                        )
+                        if resp.status_code == 200:
+                            items = resp.json().get("items", [])
+                            for it in items:
+                                if it.get("category") == "candles" and it.get("date"):
+                                    # Format is "2026-09-11T18:55:00-04:00"
+                                    raw_iso = it["date"]
+                                    if "T" in raw_iso:
+                                        resolved_candle_time = raw_iso.split("T")[1][:5]
+                                        break
+                except Exception:
+                    pass
+        if not resolved_candle_time:
+            resolved_candle_time = "18:15"
+
+    cutoff_dt = _parse_time_str(resolved_candle_time)
+    preheat_dt = cutoff_dt - timedelta(minutes=90)
+    boil_dt = cutoff_dt - timedelta(minutes=45)
+    placement_dt = cutoff_dt - timedelta(minutes=25)
+
+    cutoff_str = cutoff_dt.strftime("%H:%M")
+    preheat_str = preheat_dt.strftime("%H:%M")
+    boil_str = boil_dt.strftime("%H:%M")
+    placement_str = placement_dt.strftime("%H:%M")
+
     schedule_entries = []
 
     for dish in dishes:
@@ -252,23 +310,45 @@ def calculate_blech_schedule(
         else:
             estimated_hours = 3
 
-        # Physical Zone Determination
         dish_lower = dish_name.lower()
-        if "kugel" in dish_lower or "pastry" in dish_lower:
-            zone = "Perimeter (Gentle Keep-Warm Zone)"
-            zone_tip = "Keep away from direct burner heat to prevent bottom scorching and crust drying."
-        elif "soup" in dish_lower or "broth" in dish_lower:
-            zone = "Center (Direct Heat Zone)"
-            zone_tip = "Keep near burner center to ensure liquid remains piping hot (above Yad Soledet Bo)."
-        elif estimated_hours >= 16:
-            zone = "Mid-Blech (Moderate Indirect Zone)"
-            zone_tip = "Position halfway between center and edge; turn dish 180 degrees before Chag begins if uneven."
+
+        # Equipment assignment
+        if equipment == "warming_drawer":
+            assigned_device = "Warming Drawer"
+            zone = "Warming Drawer (180°F–200°F Sabbath Mode)"
+            zone_tip = "Gentle thermostatic heat prevents burning; set to Moist for braises or Crisp for kugels."
+        elif equipment == "both":
+            if "kugel" in dish_lower or "chicken" in dish_lower or "pastry" in dish_lower or "vegetable" in dish_lower:
+                assigned_device = "Warming Drawer"
+                zone = "Warming Drawer (Moist/Crisp Hold)"
+                zone_tip = "Warming drawer provides uniform gentle heat without bottom scorching common to blechs."
+            else:
+                assigned_device = "Blech"
+                if "soup" in dish_lower or "broth" in dish_lower:
+                    zone = "Center Blech (Direct Boil Zone)"
+                    zone_tip = "Keep centered over burner to ensure continuous boiling above Yad Soledet Bo."
+                else:
+                    zone = "Mid-Blech (Moderate Heat Zone)"
+                    zone_tip = "Place halfway between center and edge; turn pan if heat is uneven."
         else:
-            zone = "Center / Mid-Blech"
-            zone_tip = "Standard placement; safe for shorter evening warming."
+            assigned_device = "Blech"
+            if "kugel" in dish_lower or "pastry" in dish_lower:
+                zone = "Perimeter (Gentle Keep-Warm Zone)"
+                zone_tip = "Keep on blech outer rim away from direct flame to prevent bottom scorching."
+            elif "soup" in dish_lower or "broth" in dish_lower:
+                zone = "Center (Direct Heat Zone)"
+                zone_tip = "Keep near burner center to ensure liquid remains piping hot (above Yad Soledet Bo)."
+            elif estimated_hours >= 16:
+                zone = "Mid-Blech (Moderate Indirect Zone)"
+                zone_tip = "Position halfway between center and edge; turn dish 180 degrees before Chag begins if uneven."
+            else:
+                zone = "Center / Mid-Blech"
+                zone_tip = "Standard placement; safe for shorter evening warming."
 
         # Evaporation Liquid Compensation
-        if estimated_hours >= 20:
+        if assigned_device == "Warming Drawer":
+            compensation = "Standard recipe liquid is sufficient; warming drawer moisture lock prevents rapid evaporation."
+        elif estimated_hours >= 20:
             compensation = "+3/4 to 1 cup additional braising broth; seal tightly with double heavy-duty aluminum foil."
         elif estimated_hours >= 12:
             compensation = "+1/2 cup additional braising liquid/sauce; crimp foil tightly around pan rim."
@@ -282,18 +362,47 @@ def calculate_blech_schedule(
         schedule_entries.append({
             "dish": dish_name,
             "target_meal": target_meal,
-            "estimated_hours_on_blech": estimated_hours,
-            "max_recipe_tolerance": max_hours,
-            "status": status,
+            "assigned_device": assigned_device,
             "recommended_zone": zone,
             "zone_tip": zone_tip,
+            "staged_placement_time": f"{placement_str} (before {cutoff_str} candle lighting)",
+            "estimated_hours_on_heat": estimated_hours,
+            "max_recipe_tolerance": max_hours,
+            "status": status,
             "liquid_compensation": compensation,
         })
 
+    # Build Chronological Pre-Chag Staging Timeline
+    staging_timeline = [
+        {
+            "time": preheat_str,
+            "phase": "Phase 1: Pre-Heat Equipment (90 mins before Candle Lighting)",
+            "action": "Place metal blech over burners and turn to medium-low. If using a warming drawer, engage certified Sabbath Mode and preheat to 180°F–200°F.",
+        },
+        {
+            "time": boil_str,
+            "phase": "Phase 2: Boiling & Liquid Compensation (45 mins before Candle Lighting)",
+            "action": "Bring all soups, cholent/chulent, and braised meats (brisket/flanken) to a rolling boil on the direct flame to fulfill Ma'achal Ben Drusai. Top off with additional braising broth (+1/2 to +1 cup) and crimp tight double-foil.",
+        },
+        {
+            "time": placement_str,
+            "phase": "Phase 3: Staged Placement (25 mins before Candle Lighting)",
+            "action": f"Stage all pots: Place heavy soups and braises onto Center/Mid-Blech. Place kugels and poultry on Blech Perimeter or in Warming Drawer. Completed prior to {cutoff_str}.",
+        },
+        {
+            "time": cutoff_str,
+            "phase": "Phase 4: Halachic Cutoff (Candle Lighting)",
+            "action": "HALACHIC DEADLINE: Cover all gas burner knobs/switches with foil or knob covers. Lock warming drawer into Sabbath Mode. Once candles are lit and Shabbat starts, zero adjustments or flame transfers are permitted.",
+        },
+    ]
+
     return {
-        "candle_lighting_deadline": candle_lighting_time,
+        "location": location or "Local Community",
+        "year": year or 2026,
+        "candle_lighting_deadline": cutoff_str,
+        "staging_timeline": staging_timeline,
         "halachic_readiness_checklist": [
-            f"All dishes must be placed on the blech before candle lighting ({candle_lighting_time}).",
+            f"All dishes must be placed on the blech or in the warming drawer before candle lighting ({cutoff_str}).",
             "On Shabbat, all liquid food must be fully cooked (Ma'achal Ben Drusai / fully boiled) prior to placement.",
             "Knobs/controls must be covered (blech / tin foil / knob covers); no adjusting flame during Shabbat.",
             "If removing a pot on Shabbat intending to return it, keep hand on handle and do not set on counter (Chazarah rules).",
