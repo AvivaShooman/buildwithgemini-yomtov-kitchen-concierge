@@ -15,6 +15,11 @@
 import contextlib
 import os
 from collections.abc import AsyncIterator
+import agentplatform
+import vertexai
+
+# Redirect vertexai.Client calls to agentplatform.Client everywhere
+vertexai.Client = agentplatform.Client
 
 from a2a.server.tasks import InMemoryTaskStore
 from dotenv import load_dotenv

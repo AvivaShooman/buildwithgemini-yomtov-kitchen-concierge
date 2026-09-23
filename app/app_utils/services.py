@@ -23,6 +23,11 @@ from __future__ import annotations
 
 import functools
 import os
+import agentplatform
+import vertexai
+
+# Redirect vertexai.Client calls to agentplatform.Client everywhere
+vertexai.Client = agentplatform.Client
 
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.cli.service_registry import get_service_registry

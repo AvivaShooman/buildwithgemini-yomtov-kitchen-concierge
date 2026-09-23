@@ -24,25 +24,62 @@ from google.adk.apps import App
 from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.manager import A2uiSchemaManager
 from app.a2ui_utils import a2ui_callback
+import threading
 import agentplatform
+import vertexai
 from google.adk.code_executors.agent_engine_sandbox_code_executor import (
     AgentEngineSandboxCodeExecutor,
 )
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
+from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
 from google.adk.models import Gemini
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.genai import types
 
-# Ensure all ADK components use agentplatform.Client rather than deprecated vertexai.Client
-AgentEngineSandboxCodeExecutor._get_api_client = (
-    lambda self: agentplatform.Client(project=self._project_id, location=self._location)
-)
+# Redirect vertexai.Client calls to agentplatform.Client everywhere
+vertexai.Client = agentplatform.Client
+
+def _sandbox_api_client(self):
+    return agentplatform.Client(project=self._project_id, location=self._location)
+
+AgentEngineSandboxCodeExecutor._get_api_client = _sandbox_api_client
+
+def _sandbox_getstate(self):
+    state = self.__dict__.copy()
+    if hasattr(self, '__pydantic_private__') and self.__pydantic_private__:
+        private = self.__pydantic_private__.copy()
+        private.pop('_agent_engine_creation_lock', None)
+        state['__pydantic_private__'] = private
+    return state
+
+def _sandbox_setstate(self, state):
+    self.__dict__.update(state)
+    if not hasattr(self, '__pydantic_private__') or self.__pydantic_private__ is None:
+        object.__setattr__(self, '__pydantic_private__', {})
+    self.__pydantic_private__['_agent_engine_creation_lock'] = threading.Lock()
+
+AgentEngineSandboxCodeExecutor.__getstate__ = _sandbox_getstate
+AgentEngineSandboxCodeExecutor.__setstate__ = _sandbox_setstate
+
 def _memory_bank_api_client(self):
     if self._express_mode_api_key:
         return agentplatform.Client(api_key=self._express_mode_api_key).aio
     return agentplatform.Client(project=self._project, location=self._location).aio
 VertexAiMemoryBankService._get_api_client = _memory_bank_api_client
+
+def _session_api_client(self):
+    if self._express_mode_api_key:
+        return agentplatform.Client(
+            http_options=self._api_client_http_options_override(),
+            api_key=self._express_mode_api_key,
+        ).aio
+    return agentplatform.Client(
+        project=self._project,
+        location=self._location,
+        http_options=self._api_client_http_options_override(),
+    ).aio
+VertexAiSessionService._get_api_client = _session_api_client
 
 load_dotenv()
 
