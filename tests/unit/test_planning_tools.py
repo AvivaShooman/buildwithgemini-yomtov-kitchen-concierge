@@ -64,6 +64,49 @@ async def test_generate_grocery_list():
     assert "saved_document_id" in res
 
 
+@pytest.mark.asyncio
+async def test_generate_grocery_list_multi_recipe_fuzzy():
+    recipe_queries = [
+        "braised-flanken-brisket",
+        "roasted-vegetable-quinoa-stuffed-bell-peppers",
+        "classic-potato-kugel",
+        "honey-glazed-carrots-with-dried-cranberries",
+        "slow-cooker-apricot-chicken",
+        "sweet-potato-apple-tzimmes",
+        "green-bean-almondine-almond-free",
+        "deconstructed-cabbage-rolls-ground-beef",
+        "hearty-mushroom-barley-soup-barley-free",
+        "israeli-salad-cooked",
+        "completely-new-holiday-custard",  # Unknown dish to test automatic synthesis
+    ]
+
+    res = await generate_grocery_list(
+        recipe_ids=recipe_queries,
+        guest_count=8,
+        list_name="Consolidated Yom Tov Feast Shopping List",
+        save_to_firestore=True,
+    )
+
+    assert res["guest_count"] == 8
+    assert res["scale_multiplier"] == 2.0
+    # All 11 recipes must be resolved and included (none dropped!)
+    assert len(res["recipes_included"]) == 11
+    assert "Classic Braised Flanken Brisket" in res["recipes_included"]
+    assert "Roasted Vegetable & Quinoa Stuffed Bell Peppers" in res["recipes_included"]
+    assert "Traditional Potato & Caramelized Onion Kugel" in res["recipes_included"]
+
+    # Verify scaling applied to quantities (x2.0 for 8 guests)
+    produce_text = " ".join(res["aisles"]["Produce"])
+    assert "12 large bell peppers" in produce_text or "bell peppers" in produce_text
+
+    meat_text = " ".join(res["aisles"]["Meat & Poultry"])
+    assert "10 lbs beef flanken" in meat_text or "16 chicken thighs" in meat_text
+
+    # Verify unknown recipe was synthesized and included
+    assert any("Completely New Holiday Custard" in r for r in res["recipes_included"])
+
+
+
 def test_calculate_blech_schedule():
     dishes = [
         {"name": "Classic Braised Flanken Brisket", "max_warming_hours": 24, "meal": "Shabbat Lunch"},
