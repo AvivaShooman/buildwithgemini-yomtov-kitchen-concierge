@@ -249,14 +249,6 @@ gcloud run deploy yomtov-kitchen-frontend \
   --quiet
 ```
 
----
-
-## 📜 Halachic Cooking Notice
-
-*YomTov Kitchen Concierge provides culinary planning, evaporation compensation guidelines, and warming timelines based on standard halachic principles regarding Shabbat, Yom Tov, Havdalah, and blech management. Because customs vary (e.g., Ashkenazi vs. Sephardic, Chabad, Rav Moshe Feinstein vs. Rav Ovadia Yosef), always consult your local Orthodox rabbi or halachic authority for definitive personal rulings.*
-
----
-
 ## 🏗️ Terraform Infrastructure Deployment
 
 ```bash
@@ -269,3 +261,10 @@ terraform plan -var="project_id=<YOUR_PROJECT_ID>"
 # 3. Apply infrastructure to Google Cloud
 terraform apply -var="project_id=<YOUR_PROJECT_ID>" -auto-approve
 ```
+
+---
+
+## 📜 Halachic Cooking Notice
+
+*YomTov Kitchen Concierge provides culinary planning, evaporation compensation guidelines, and warming timelines based on standard halachic principles regarding Shabbat, Yom Tov, Havdalah, and blech management. Because customs vary (e.g., Ashkenazi vs. Sephardic, Chabad, Rav Moshe Feinstein vs. Rav Ovadia Yosef), always consult your local Orthodox rabbi or halachic authority for definitive personal rulings.*
+
