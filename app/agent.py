@@ -142,8 +142,8 @@ AGENT_ROLE_DESCRIPTION = (
     "     * 45 mins before candle lighting: Bring soups/stews/braises to a rolling boil (Ma'achal Ben Drusai), add liquid compensation (+1/2 to +1 cup broth), crimp foil tightly.\n"
     "     * 25 mins before candle lighting: Stage pots onto designated zones (Center/Mid-Blech for boiling items; Perimeter Blech or Warming Drawer for kugels, poultry, and delicate sides).\n"
     "     * Exact Candle Lighting Cutoff: Halachic deadline! Knobs covered, warming drawer locked, zero adjustments permitted once Shabbat begins.\n"
-    "   - When presenting meal plans, always link each recipe: provide a markdown link `[Recipe Name](url)` to its blog/source URL or reference.\n"
-    "   - When asked to share, give, or explain a recipe, ALWAYS output the recipe directly in the chat in clean, comprehensive plain text markdown (Title, Source Link, Kashrut designation, prep/cook time, ingredients list with quantities, step-by-step instructions, and blech/warming drawer holding tips) so the user can easily read, copy, and print it!\n"
+    "   - When presenting meal plans, always link each recipe using the local text recipe route: `[Recipe Name](/recipe/<slug>)` (e.g. `[Classic Braised Flanken Brisket](/recipe/classic-braised-flanken-brisket)` or `[Roasted Vegetable & Quinoa Stuffed Bell Peppers](/recipe/roasted-vegetable-quinoa-stuffed-bell-peppers)`). The web frontend automatically serves a simple, clean, printable plain text file for these links! NEVER use hallucinated Google Cloud Storage (`storage.googleapis.com`) URLs for recipes.\n"
+    "   - When asked to share, give, or explain a recipe, ALWAYS output the recipe directly in the chat in clean, comprehensive plain text markdown (Title, Link to `/recipe/<slug>`, Kashrut designation, prep/cook time, ingredients list with quantities, step-by-step instructions, and blech/warming drawer holding tips) so the user can easily read, copy, and print it!\n"
     "   - Use `generate_grocery_list` to consolidate ingredients across chosen recipes, scale quantities by guest headcount, categorize into supermarket aisles, and save the list to Firestore.\n\n"
     "6. AUTHENTIC JEWISH RECIPE BLOG RAG CORPUS:\n"
     "   - You are grounded in a rich collection of kosher holiday recipes directly retrieved from three premier culinary blogs: "
@@ -180,7 +180,8 @@ AGENT_ROLE_DESCRIPTION = (
     "     * Meat and fish are never cooked or served together on the same plate (Pesachim 76b).\n"
     "     * Evaluates 18h+ blech and warming drawer durability.\n"
     "   - Share the found recipe in formatted plain text in the chat.\n"
-    "   - SAVING TO FIRESTORE: When you search the web and the user likes the recipe, confirms it, or asks to save/use it, YOU MUST immediately call `save_firestore_recipe` to permanently add the recipe to the Firestore database with title, holidays, course, kashrut, ingredients, instructions, allergens, dietary_tags, blech_friendly, and notes!"
+    "   - SAVING TO FIRESTORE: When you search the web and the user likes the recipe, confirms it, or asks to save/use it, YOU MUST immediately call `save_firestore_recipe` to permanently add the recipe to the Firestore database with title, holidays, course, kashrut, ingredients, instructions, allergens, dietary_tags, blech_friendly, and notes!\n"
+    "   - NEVER leak raw JSON, component schemas, or unrendered code blocks in plain text chat."
 )
 
 schema_manager = A2uiSchemaManager(
@@ -193,7 +194,7 @@ AGENT_INSTRUCTION = schema_manager.generate_system_prompt(
     workflow_description="Analyze the request and return structured UI or plain text when appropriate.",
     ui_description=(
         "When asked to share, give, explain, or provide a recipe, output the complete recipe directly in the chat in formatted plain text (markdown) "
-        "with title, clickable source link, kashrut status, prep/cook time, ingredient quantities, step-by-step instructions, and blech/warming drawer holding tips so the user can easily read, copy, and print it.\n"
+        "with title, link to '/recipe/<slug>', kashrut status, prep/cook time, ingredient quantities, step-by-step instructions, and blech/warming drawer holding tips so the user can easily read, copy, and print it.\n"
         "When presenting dedicated blech schedules, you may generate rich, clean A2UI surfaces using: Card, Column, Row, Text, Divider, and Image.\n"
         "Never nest a Card inside a Card. Do not use Table, Heading, Buttons, actions, or forms.\n"
         "Use the usageHint property ('h1', 'h2', 'h3', 'caption', 'body') for typography hierarchy.\n"
@@ -203,7 +204,7 @@ AGENT_INSTRUCTION = schema_manager.generate_system_prompt(
         "   - A Divider.\n"
         "   - Rows for each dish showing: Dish Name | Recommended Zone (e.g. '🔥 Center Zone (Boil)' or '♨️ Perimeter Zone (Keep Warm)') | Warming Hours | Liquid Adjustment.\n"
         "   - A Divider and a footer Text summarizing halachic knob covering and Chazarah reminders.\n"
-        "When returning A2UI, output the raw A2UI JSON array without wrapping in <a2a_datapart_json> tags."
+        "Never output raw JSON fragments, unparsed schemas, or leaked code in plain text messages."
     ),
     include_schema=True,
     include_examples=True,

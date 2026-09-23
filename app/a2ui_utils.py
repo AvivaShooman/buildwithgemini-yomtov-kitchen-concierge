@@ -29,14 +29,21 @@ from google.genai import types
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_response import LlmResponse
 
-# A2UI message kinds this renderer understands (v0.8).
-_A2UI_KEYS = ("beginRendering", "surfaceUpdate", "dataModelUpdate", "deleteSurface")
+# A2UI message kinds and component indicators this renderer understands.
+_A2UI_KEYS = (
+    "beginRendering",
+    "surfaceUpdate",
+    "dataModelUpdate",
+    "deleteSurface",
+    "literalString",
+    "explicitList",
+    "component",
+)
 
 # Tags the model may wrap around its output (its own render wrapper, or the SDK's).
 _TAG_RE = re.compile(r"</?(?:a2a_datapart_json|a2ui-json)>")
 
-# Shown when the model emitted A2UI we could not fully parse (usually malformed
-# JSON on a large surface). Better than a blank card or a wall of raw JSON.
+# Shown when the model emitted A2UI we could not fully parse and has no literal strings.
 _FALLBACK_TEXT = (
     "I couldn't render that view. Could you ask again, maybe for a simpler summary?"
 )
@@ -241,9 +248,23 @@ def a2ui_callback(
         _sanitize_image_components(messages)
 
         if not _surface_is_renderable(messages):
-            # We recognized A2UI but couldn't recover a renderable surface — the
-            # model emitted invalid JSON, a missing surface body, or an undefined
-            # root/child reference. Return clean text instead of a blank card.
+            # We recognized A2UI or JSON fragments but couldn't recover a renderable surface.
+            # Extract any literal strings into clean readable markdown bullet points instead of a blank card or raw JSON!
+            extracted = re.findall(r'"literalString":\s*"([^"\\]*(?:\\.[^"\\]*)*)"', text)
+            if extracted:
+                lines = []
+                for item in extracted:
+                    clean = item.replace('\\"', '"').replace('\\n', '\n').strip()
+                    if clean:
+                        if not clean.startswith("•") and not clean.startswith("-") and not clean.startswith("*"):
+                            clean = f"• {clean}"
+                        lines.append(clean)
+                clean_msg = "\n\n".join(lines)
+                return LlmResponse(
+                    content=types.Content(
+                        role="model", parts=[types.Part(text=clean_msg)]
+                    )
+                )
             return LlmResponse(
                 content=types.Content(
                     role="model", parts=[types.Part(text=_FALLBACK_TEXT)]

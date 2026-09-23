@@ -20,7 +20,7 @@ import google.auth
 import google.auth.transport.requests
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,18 @@ except ImportError:
 
     A2A_SDK_V1 = False
 
+_firestore_db = None
+
+def _get_firestore_db():
+    global _firestore_db
+    if _firestore_db is None:
+        try:
+            from google.cloud import firestore
+            _firestore_db = firestore.AsyncClient()
+        except Exception as e:
+            logger.warning("Could not initialize firestore client: %s", e)
+    return _firestore_db
+
 
 def _auth_headers() -> dict[str, str]:
     _creds.refresh(google.auth.transport.requests.Request())
@@ -106,6 +118,79 @@ async def _get_card(client: httpx.AsyncClient):
     return _card
 
 
+def parse_text_content(text: str) -> list[dict]:
+    """Parse text parts and robustly handle A2UI wrappers, fenced JSON, and raw leaked JSON."""
+    out = []
+    if not text:
+        return out
+
+    # 1. Check for <a2a_datapart_json>...</a2a_datapart_json>
+    if "<a2a_datapart_json>" in text:
+        matches = re.findall(
+            r"<a2a_datapart_json>(.*?)</a2a_datapart_json>", text, re.DOTALL
+        )
+        for m in matches:
+            try:
+                payload = json.loads(m.strip())
+                if isinstance(payload, dict) and "data" in payload:
+                    out.append({"kind": "a2ui", "data": payload["data"]})
+                elif isinstance(payload, (dict, list)):
+                    out.append({"kind": "a2ui", "data": payload})
+            except Exception:
+                pass
+        text = re.sub(
+            r"<a2a_datapart_json>.*?</a2a_datapart_json>", "", text, flags=re.DOTALL
+        ).strip()
+
+    if not text:
+        return out
+
+    # 2. Check for markdown code fences containing JSON
+    clean_text = text.strip()
+    if clean_text.startswith("```"):
+        lines = clean_text.splitlines()
+        if len(lines) >= 2 and lines[0].startswith("```"):
+            inner_code = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+            try:
+                payload = json.loads(inner_code.strip())
+                if isinstance(payload, (list, dict)):
+                    out.append({"kind": "a2ui", "data": payload})
+                    return out
+            except Exception:
+                pass
+
+    # 3. Check for raw A2UI JSON array or object
+    if (clean_text.startswith("[") or clean_text.startswith("{")) and any(
+        k in clean_text for k in ("surfaceUpdate", "beginRendering", "explicitList", "component")
+    ):
+        try:
+            payload = json.loads(clean_text)
+            out.append({"kind": "a2ui", "data": payload})
+            return out
+        except Exception:
+            pass
+
+    # 4. Check for leaked raw JSON containing "literalString" or "component" (prevent ugly JSON on UI)
+    if '"literalString":' in text or ('"component":' in text and '"id":' in text):
+        extracted = re.findall(r'"literalString":\s*"([^"\\]*(?:\\.[^"\\]*)*)"', text)
+        if extracted:
+            lines = []
+            for item in extracted:
+                clean_item = item.replace('\\"', '"').replace('\\n', '\n').strip()
+                if clean_item:
+                    if clean_item.startswith("•") or clean_item.startswith("-"):
+                        lines.append(clean_item)
+                    else:
+                        lines.append(f"• {clean_item}")
+            out.append({"kind": "text", "text": "\n\n".join(lines)})
+            return out
+
+    if text.strip():
+        out.append({"kind": "text", "text": text})
+
+    return out
+
+
 def _extract_part_data(p) -> list[dict]:
     """Turn response part into structured parts for the chat UI."""
     out = []
@@ -121,28 +206,7 @@ def _extract_part_data(p) -> list[dict]:
             return out
 
         if p.text:
-            text = p.text
-            if "<a2a_datapart_json>" in text:
-                matches = re.findall(
-                    r"<a2a_datapart_json>(.*?)</a2a_datapart_json>", text, re.DOTALL
-                )
-                for m in matches:
-                    try:
-                        payload = json.loads(m.strip())
-                        if isinstance(payload, dict) and "data" in payload:
-                            out.append({"kind": "a2ui", "data": payload["data"]})
-                        elif isinstance(payload, dict):
-                            out.append({"kind": "a2ui", "data": payload})
-                    except Exception:
-                        pass
-                clean_text = re.sub(
-                    r"<a2a_datapart_json>.*?</a2a_datapart_json>", "", text, flags=re.DOTALL
-                ).strip()
-                if clean_text:
-                    out.append({"kind": "text", "text": clean_text})
-            else:
-                out.append({"kind": "text", "text": text})
-            return out
+            return parse_text_content(p.text)
 
         if p.url:
             out.append({"kind": "text", "text": p.url})
@@ -154,8 +218,7 @@ def _extract_part_data(p) -> list[dict]:
     root = getattr(p, "root", p)
     text = getattr(root, "text", None)
     if text:
-        out.append({"kind": "text", "text": text})
-        return out
+        return parse_text_content(text)
 
     data = getattr(root, "data", None)
     if data is not None:
@@ -171,6 +234,110 @@ def _extract_part_data(p) -> list[dict]:
         return out
 
     return out
+
+
+@app.get("/recipe")
+@app.get("/recipe/{recipe_id}")
+@app.get("/recipes/{recipe_id}")
+async def get_recipe_text(recipe_id: str = "", name: str = "", id: str = ""):
+    """Renders a simple, clean, printable plain text file with the requested recipe."""
+    target = (recipe_id or name or id).strip()
+    if not target:
+        return PlainTextResponse("No recipe specified.", status_code=400)
+
+    slug = re.sub(r"(-Recipe|\.md|\.txt)$", "", target, flags=re.IGNORECASE)
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", slug).strip("-").lower()
+
+    doc_data = None
+    db = _get_firestore_db()
+    if db:
+        try:
+            doc_ref = db.collection("recipes").document(slug)
+            doc = await doc_ref.get()
+            if doc.exists:
+                doc_data = doc.to_dict()
+            else:
+                # Search by matching slug in document IDs or title
+                async for d in db.collection("recipes").stream():
+                    d_dict = d.to_dict()
+                    title_slug = re.sub(r"[^a-zA-Z0-9]+", "-", d_dict.get("title", "")).strip("-").lower()
+                    if slug in d.id or slug in title_slug or title_slug in slug:
+                        doc_data = d_dict
+                        break
+        except Exception as e:
+            logger.warning("Firestore lookup error for recipe %s: %s", slug, e)
+
+    if not doc_data:
+        return PlainTextResponse(
+            f"================================================================================\n"
+            f"RECIPE: {target.replace('-', ' ').title()}\n"
+            f"================================================================================\n\n"
+            f"This recipe has not yet been saved to the permanent Firestore catalog.\n\n"
+            f"To view and save this recipe:\n"
+            f"1. Return to the YomTov Kitchen Concierge chat window.\n"
+            f"2. Ask: 'Please share the full recipe for {target.replace('-', ' ').title()}'\n"
+            f"3. The Concierge will share the complete recipe in the chat and add it to the database!\n",
+            status_code=200,
+            media_type="text/plain; charset=utf-8",
+        )
+
+    # Format as a clean, simple text file with the recipe
+    title = doc_data.get("title", target.replace("-", " ").title())
+    kashrut = doc_data.get("kashrut", "pareve").capitalize()
+    course = doc_data.get("course", "main").capitalize()
+    holidays = ", ".join(doc_data.get("holidays", ["Shabbat", "Yom Tov"]))
+    dietary_tags = ", ".join(doc_data.get("dietary_tags", [])) or "None"
+    allergens = ", ".join(doc_data.get("allergens", [])) or "None"
+    blech_friendly = "Yes" if doc_data.get("blech_friendly") else "No"
+    warming_drawer = "Yes" if doc_data.get("warming_drawer_friendly") else "No"
+    max_hours = doc_data.get("max_warming_hours", 18)
+    day2 = doc_data.get("day2_leftover_quality", "Excellent")
+
+    ingredients = doc_data.get("ingredients", [])
+    if isinstance(ingredients, list):
+        ingredients_text = "\n".join(f"* {ing}" for ing in ingredients)
+    else:
+        ingredients_text = str(ingredients)
+
+    instructions = doc_data.get("instructions", "")
+    evap = doc_data.get("evaporation_compensation", "Add 1/2 cup extra liquid before warming.")
+    notes = doc_data.get("notes", "Seal tightly with heavy duty foil.")
+
+    content = f"""================================================================================
+{title.upper()}
+================================================================================
+Kashrut Designation: {kashrut}
+Course:              {course}
+Holidays:            {holidays}
+Dietary Tags:        {dietary_tags}
+Allergens:           {allergens}
+Blech Friendly:      {blech_friendly}
+Warming Drawer:      {warming_drawer}
+Max Warming Time:    Up to {max_hours} hours
+Day 2 Quality:       {day2}
+
+--------------------------------------------------------------------------------
+INGREDIENTS:
+--------------------------------------------------------------------------------
+{ingredients_text}
+
+--------------------------------------------------------------------------------
+INSTRUCTIONS:
+--------------------------------------------------------------------------------
+{instructions}
+
+--------------------------------------------------------------------------------
+BLECH & WARMING DRAWER GUIDELINES:
+--------------------------------------------------------------------------------
+* Liquid Compensation: {evap}
+* Staging Notes:       {notes}
+================================================================================
+"""
+    return PlainTextResponse(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"inline; filename={slug}.txt"},
+    )
 
 
 @app.post("/reset")
