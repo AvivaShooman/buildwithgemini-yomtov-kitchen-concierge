@@ -80,3 +80,53 @@ def search_recipe_rag_corpus(query: str) -> str:
             if matched:
                 return "Note: Retrieved from local recipe cache:\n\n" + "\n\n---\n\n".join(matched)
         return f"Error retrieving from recipe RAG corpus: {str(e)}"
+
+
+def consult_halachic_culinary_docs(query: str) -> str:
+    """Search authoritative halachic rulings, appliance standards, blech management, and holiday guidelines
+    from the YomTov Kitchen Concierge Halachic & Culinary Knowledge Base via Vertex AI RAG Engine.
+
+    Use this tool whenever users ask:
+    - How cooking rules differ between Shabbat and Yom Tov (Ochel Nefesh, pre-existing flame transfer, flame adjustment).
+    - When Shabbat coincides with Yom Tov (Shabbat restrictions take 100% precedence; zero cooking or flame transfer).
+    - Eruv Tavshilin requirements, timing, blessing, declaration, and procedure when Yom Tov precedes Shabbat.
+    - Blech halachot: Shehiya (leaving before sunset), Chazarah (5 conditions to return food), Hatmana (wrapping prohibitions).
+    - Modern appliances: certified Sabbath Mode warming drawers, oven Sabbath mode, and safe temperature holding.
+    - Extended blech warming durability (18-36 hours on heat), physical heat zones (Center boil vs Perimeter keep-warm),
+      and braising liquid evaporation compensation.
+    - Prohibition of Hachanah (preparing food or setting tables on Yom Tov Day 1 for Day 2 before Tzeit HaKochavim).
+
+    Args:
+        query: What halachic question, blech rule, or holiday kitchen procedure to look up.
+
+    Returns:
+        Authoritative halachic passages, definitions, and practical kitchen guidelines grounded in the corpus.
+    """
+    try:
+        client = agentplatform.Client(project=PROJECT_ID, location=LOCATION)
+        response = client.rag.retrieve_contexts(
+            vertex_rag_store=dict(
+                rag_resources=[dict(rag_corpus=CORPUS_NAME)]
+            ),
+            query=dict(text=query, similarity_top_k=4),
+        )
+        contexts = getattr(response.contexts, "contexts", [])
+        if not contexts:
+            return f"No halachic rulings found in the RAG corpus for query: '{query}'."
+
+        results = []
+        for i, ctx in enumerate(contexts, 1):
+            text = ctx.text.strip()
+            score = getattr(ctx, "score", None)
+            score_header = f" (relevance score: {score:.2f})" if score is not None else ""
+            results.append(f"### [Authoritative Halachic Source {i}]{score_header}\n{text}")
+
+        return "\n\n".join(results)
+    except Exception as e:
+        # Local fallback to halacha_and_culinary_guide.md
+        guide_path = Path(__file__).resolve().parent.parent.parent / "data" / "halacha_and_culinary_guide.md"
+        if guide_path.exists():
+            content = guide_path.read_text(encoding="utf-8")
+            return f"Note: Retrieved from local Halachic & Culinary Guide fallback:\n\n{content[:3000]}"
+        return f"Error retrieving from halachic RAG corpus: {str(e)}"
+
