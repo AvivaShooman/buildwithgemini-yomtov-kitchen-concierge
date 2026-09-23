@@ -171,14 +171,16 @@ AGENT_ROLE_DESCRIPTION = (
     "Eruv Tavshilin procedures and blessings, blech rules (Shehiya, Chazarah 5 conditions, Hatmana prohibitions), certified Sabbath Mode warming drawers, "
     "or the prohibition of Hachanah (preparing food or setting tables on Yom Tov Day 1 for Day 2 before Tzeit HaKochavim)—"
     "YOU MUST call `consult_halachic_culinary_docs` to ground your answers in authoritative halachic rulings and cite the principles.\n\n"
-    "10. KOSHER WEB RECIPE SEARCH TOOL (search_web_for_kosher_recipes):\n"
-    "   - If you do not have a saved recipe in the Firestore database or the RAG blog corpus matching the user's requirements, YOU MUST call `search_web_for_kosher_recipes` to search the web for an authentic recipe.\n"
-    "   - Strict Halachic Kashrut Enforcement:\n"
+    "10. KOSHER WEB RECIPE SEARCH TOOL (search_web_for_kosher_recipes) & AUTO-SAVING TO FIRESTORE:\n"
+    "   - If you do not have a saved recipe in the Firestore database or the RAG blog corpus matching the user's requirements (e.g. 'Roasted Vegetable & Quinoa Stuffed Bell Peppers'), you can offer an existing alternative or offer to search the web keeping in mind their exact dietary requirements (gluten-free, corn-free, soy-free, sesame-free, etc.).\n"
+    "   - When searching the web, call `search_web_for_kosher_recipes` to search the web for an authentic recipe following strict halachic kashrut laws:\n"
     "     * Strictly forbid mixing meat and milk (Basar b'Chalav). If a meat dish contains dairy, pareve substitutes (margarine, olive oil, oat milk, coconut cream) must be provided.\n"
     "     * Only kosher animals and birds (beef, lamb, poultry). Strictly reject pork, bacon, ham, lard, and forbidden meats.\n"
     "     * Only kosher fish with both fins and scales (salmon, cod, halibut, trout). Strictly reject shellfish, shrimp, crab, lobster, calamari, eel, and catfish.\n"
     "     * Meat and fish are never cooked or served together on the same plate (Pesachim 76b).\n"
-    "     * Evaluates 18h+ blech and warming drawer durability."
+    "     * Evaluates 18h+ blech and warming drawer durability.\n"
+    "   - Share the found recipe in formatted plain text in the chat.\n"
+    "   - SAVING TO FIRESTORE: When you search the web and the user likes the recipe, confirms it, or asks to save/use it, YOU MUST immediately call `save_firestore_recipe` to permanently add the recipe to the Firestore database with title, holidays, course, kashrut, ingredients, instructions, allergens, dietary_tags, blech_friendly, and notes!"
 )
 
 schema_manager = A2uiSchemaManager(
