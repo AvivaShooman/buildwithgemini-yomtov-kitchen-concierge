@@ -958,6 +958,8 @@ function bubble(who) {
   
   log.appendChild(row);
   chatContainer.scrollTop = chatContainer.scrollHeight;
+  log.scrollTop = log.scrollHeight;
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   return b;
 }
 
@@ -1091,6 +1093,8 @@ function renderReply(b, parts) {
   }
   if (!b.childNodes.length) b.textContent = "(no response)";
   chatContainer.scrollTop = chatContainer.scrollHeight;
+  log.scrollTop = log.scrollHeight;
+  b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // Chat Form Submit Handler

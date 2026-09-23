@@ -428,6 +428,14 @@ async def chat(req: Request):
                     got_artifact_update = True
                     for p in update.artifact.parts:
                         parts.extend(_extract_part_data(p))
+                elif hasattr(update, "parts") and getattr(update, "parts", None):
+                    got_artifact_update = True
+                    for p in update.parts:
+                        parts.extend(_extract_part_data(p))
+                elif hasattr(update, "message") and hasattr(getattr(update, "message", None), "parts"):
+                    got_artifact_update = True
+                    for p in update.message.parts:
+                        parts.extend(_extract_part_data(p))
 
             if not got_artifact_update and last_task is not None:
                 for artifact in getattr(last_task, "artifacts", None) or []:
