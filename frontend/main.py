@@ -173,11 +173,24 @@ def _extract_part_data(p) -> list[dict]:
     return out
 
 
+@app.post("/reset")
+async def reset(req: Request):
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    user_id = body.get("user_id") or "web-user"
+    _contexts.pop(user_id, None)
+    return JSONResponse({"status": "reset", "user_id": user_id})
+
+
 @app.post("/chat")
 async def chat(req: Request):
     body = await req.json()
     message = body.get("message", "")
     user_id = body.get("user_id") or "web-user"
+    if body.get("reset"):
+        _contexts.pop(user_id, None)
     parts: list[dict] = []
 
     headers = _auth_headers()

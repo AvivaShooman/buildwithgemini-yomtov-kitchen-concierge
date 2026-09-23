@@ -4,19 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kosher Yom Tov and Shabbat Intellgent Concierge</title>
-<!-- Optional: used only to draw A2UI Icon components. If it can't load (offline/
-     corp network), icons fall back to showing their name as text. -->
+<!-- Material Symbols for icons -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
+<!-- Lightweight Marked.js for markdown tables, lists & formatted text -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 <style>
   :root {
     --accent: #0f2b5c;           /* Deep Navy Blue */
     --accent-light: #1b3d75;     /* Navy hover / lighter tone */
-    --accent-dark: #0a1c3d;      /* Deep Navy */
+    --accent-subtle: #f0f4fa;    /* Very light navy tint */
+    --accent-dark: #0a1c3d;      /* Midnight Navy */
     --bg: #f8fafc;               /* Clean white-tint background */
     --surface: #ffffff;          /* Pure white card/bubble background */
     --text-primary: #0f172a;     /* Deep slate for high contrast */
     --text-muted: #64748b;       /* Muted slate text */
     --border: #e2e8f0;           /* Soft clean border */
+    --border-active: #94a3b8;    /* Border on focus */
   }
   * { box-sizing: border-box; }
   body {
@@ -28,15 +32,19 @@
     flex-direction: column;
     height: 100vh;
   }
+
+  /* Header */
   header {
     background: var(--accent);
     color: #ffffff;
-    padding: 0.9rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     box-shadow: 0 2px 8px rgba(15, 43, 92, 0.18);
     display: flex;
     align-items: center;
     justify-content: space-between;
     z-index: 10;
+    gap: 1rem;
+    flex-wrap: wrap;
   }
   .header-brand {
     display: flex;
@@ -48,14 +56,60 @@
     font-weight: 700;
     letter-spacing: 0.01em;
   }
-  .header-tag {
-    font-size: 0.75rem;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.18);
-    padding: 0.25rem 0.6rem;
-    border-radius: 999px;
-    letter-spacing: 0.03em;
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
   }
+
+  /* Holiday selector in header */
+  .holiday-select-wrap {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .holiday-select-wrap select {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+  }
+  .holiday-select-wrap select option {
+    background: #0f2b5c;
+    color: #ffffff;
+  }
+
+  /* Header action buttons */
+  .header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s ease;
+  }
+  .header-btn:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
+
+  /* Printable Header (hidden on screen) */
+  .print-only {
+    display: none;
+  }
+
+  /* Chat Container */
   #chat-container {
     flex: 1;
     overflow-y: auto;
@@ -65,12 +119,12 @@
   #log {
     flex: 1;
     padding: 1.25rem 1.5rem;
-    max-width: 860px;
+    max-width: 880px;
     width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 1.1rem;
+    gap: 1.2rem;
   }
 
   /* Welcome Banner */
@@ -79,7 +133,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 1.25rem 1.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     box-shadow: 0 2px 6px rgba(15, 43, 92, 0.05);
     display: flex;
     gap: 1rem;
@@ -107,7 +161,7 @@
     display: flex;
     gap: 0.75rem;
     align-items: flex-start;
-    max-width: 88%;
+    max-width: 90%;
   }
   .msg-row.agent {
     align-self: flex-start;
@@ -138,26 +192,60 @@
   .msg-content {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.3rem;
     min-width: 0;
   }
   .msg-row.user .msg-content {
     align-items: flex-end;
   }
+  .msg-header-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+  }
   .sender-name {
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-muted);
-    padding: 0 0.25rem;
   }
+
+  /* Action buttons per message (Copy & Print) */
+  .msg-actions {
+    display: flex;
+    gap: 0.35rem;
+    opacity: 0.7;
+    transition: opacity 0.18s;
+  }
+  .msg-row:hover .msg-actions {
+    opacity: 1;
+  }
+  .msg-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .msg-action-btn:hover {
+    background: var(--border);
+    color: var(--accent);
+  }
+
   .bubble {
     display: inline-block;
-    padding: 0.8rem 1.1rem;
+    padding: 0.85rem 1.15rem;
     border-radius: 16px;
     background: var(--surface);
     border: 1px solid var(--border);
     text-align: left;
-    white-space: pre-wrap;
     line-height: 1.5;
     font-size: 0.95rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -170,6 +258,7 @@
     color: #ffffff;
     border: none;
     border-top-right-radius: 4px;
+    white-space: pre-wrap;
     box-shadow: 0 2px 6px rgba(15, 43, 92, 0.2);
   }
   .bubble.rich {
@@ -180,7 +269,99 @@
     box-shadow: none;
   }
 
-  /* Quick prompt chips & Footer Container */
+  /* Rendered Markdown Styling */
+  .markdown-body {
+    line-height: 1.55;
+    color: var(--text-primary);
+  }
+  .markdown-body p {
+    margin: 0.4rem 0;
+  }
+  .markdown-body p:first-child {
+    margin-top: 0;
+  }
+  .markdown-body p:last-child {
+    margin-bottom: 0;
+  }
+  .markdown-body ul, .markdown-body ol {
+    margin: 0.4rem 0;
+    padding-left: 1.3rem;
+  }
+  .markdown-body li {
+    margin: 0.25rem 0;
+  }
+  .markdown-body strong {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.6rem 0;
+    font-size: 0.88rem;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .markdown-body th, .markdown-body td {
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  .markdown-body th {
+    background: var(--accent);
+    color: #ffffff;
+    font-weight: 600;
+  }
+  .markdown-body tr:nth-child(even) {
+    background: var(--accent-subtle);
+  }
+
+  /* Blech & Dietary Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin: 0 0.15rem;
+    vertical-align: middle;
+  }
+  .badge-hot {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+  }
+  .badge-warm {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+  .badge-blech {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+  .badge-pareve {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+  }
+  .badge-meat {
+    background: #ffe4e6;
+    color: #9f1239;
+    border: 1px solid #fecdd3;
+  }
+  .badge-dairy {
+    background: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+  }
+
+  /* Preferences & Filters Bar */
   .footer-container {
     background: #ffffff;
     border-top: 1px solid var(--border);
@@ -190,16 +371,60 @@
     gap: 0.65rem;
   }
   .footer-inner {
-    max-width: 860px;
+    max-width: 880px;
     width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: 0.6rem;
   }
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .control-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* Dietary & Equipment Toggle Chips */
+  .toggle-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #f1f5f9;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.16s ease-in-out;
+    user-select: none;
+  }
+  .toggle-chip:hover {
+    background: #e2e8f0;
+  }
+  .toggle-chip.active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+    box-shadow: 0 1px 4px rgba(15, 43, 92, 0.2);
+  }
+
+  /* Clickable Prompt Chips */
   .quick-prompts {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.55rem;
     overflow-x: auto;
     padding-bottom: 2px;
   }
@@ -210,7 +435,7 @@
     background: #ffffff;
     border: 1.5px solid var(--border);
     color: var(--accent);
-    padding: 0.45rem 0.85rem;
+    padding: 0.42rem 0.85rem;
     border-radius: 999px;
     font-size: 0.82rem;
     font-weight: 600;
@@ -230,7 +455,7 @@
     font-size: 0.95rem;
   }
 
-  /* Form & Input */
+  /* Input Form */
   form {
     display: flex;
     gap: 0.65rem;
@@ -294,6 +519,29 @@
     40% { transform: scale(1); opacity: 1; }
   }
 
+  /* Toast Notification */
+  #toast {
+    position: fixed;
+    bottom: 5.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent-dark);
+    color: #ffffff;
+    padding: 0.6rem 1.2rem;
+    border-radius: 30px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    z-index: 100;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
   /* --- A2UI component styles (Card, Column, Row, Text, Divider, List, Image, Icon) --- */
   .a2card {
     border: 1px solid var(--border);
@@ -316,20 +564,105 @@
   .a2divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; width: 100%; }
   .a2img { max-width: 100%; border-radius: 10px; display: block; border: 1px solid var(--border); }
   .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-size: 1.3rem; line-height: 1; vertical-align: middle; color: var(--accent); }
+
+  /* --- Print Stylesheet --- */
+  @media print {
+    body {
+      background: #ffffff;
+      color: #000000;
+      height: auto;
+    }
+    header, .footer-container, .msg-actions, .avatar, #toast {
+      display: none !important;
+    }
+    .print-only {
+      display: block !important;
+      padding: 1rem 0;
+      border-bottom: 2px solid #000;
+      margin-bottom: 1.5rem;
+    }
+    .print-only h1 {
+      margin: 0 0 0.3rem 0;
+      font-size: 1.5rem;
+    }
+    .print-only p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #555;
+    }
+    #chat-container {
+      overflow: visible;
+      height: auto;
+    }
+    #log {
+      max-width: 100%;
+      padding: 0;
+      gap: 1.5rem;
+    }
+    .msg-row {
+      max-width: 100%;
+    }
+    .msg-row.user {
+      display: none !important; /* In prep sheets, only print agent recipes & schedules */
+    }
+    .bubble {
+      box-shadow: none !important;
+      border: 1px solid #bbb !important;
+      padding: 1rem !important;
+    }
+    .a2card {
+      box-shadow: none !important;
+      border: 1px solid #bbb !important;
+      page-break-inside: avoid;
+    }
+    .markdown-body th {
+      background: #eee !important;
+      color: #000 !important;
+    }
+  }
 </style>
 </head>
 <body>
+
 <header>
   <div class="header-brand">
     <span class="material-symbols-outlined" style="font-size:1.6rem; color:#ffffff;">soup_kitchen</span>
     <span class="header-title">YomTov Kitchen Concierge</span>
   </div>
-  <span class="header-tag">Kosher Culinary Assistant</span>
+
+  <div class="header-controls">
+    <div class="holiday-select-wrap" title="Select active holiday context">
+      <span class="material-symbols-outlined" style="font-size:1.1rem; color:#ffffff; margin-right:4px;">calendar_month</span>
+      <select id="holiday-select">
+        <option value="General Shabbat">General Shabbat / Yom Tov</option>
+        <option value="Rosh Hashanah">Rosh Hashanah</option>
+        <option value="Sukkot">Sukkot</option>
+        <option value="Pesach">Pesach (Passover)</option>
+        <option value="Shavuot">Shavuot</option>
+      </select>
+    </div>
+
+    <button id="print-prep-btn" class="header-btn" title="Print kitchen prep sheet for Shabbat/Yom Tov">
+      <span class="material-symbols-outlined" style="font-size:1.1rem; color:#fff;">print</span>
+      <span>Print Prep Sheet</span>
+    </button>
+
+    <button id="reset-btn" class="header-btn" title="Reset conversation & start a new menu">
+      <span class="material-symbols-outlined" style="font-size:1.1rem; color:#fff;">restart_alt</span>
+      <span>New Menu</span>
+    </button>
+  </div>
 </header>
+
+<!-- Printable Header -->
+<div class="print-only" id="print-header">
+  <h1>YomTov Kitchen Concierge — Shabbat & Yom Tov Prep Sheet</h1>
+  <p id="print-date-display">Generated on: </p>
+</div>
 
 <div id="chat-container">
   <div id="log">
-    <div class="welcome-card">
+    <div class="welcome-card" id="welcome-card">
       <div class="welcome-icon">✡️</div>
       <div class="welcome-text">
         <h3>Shalom & Welcome to YomTov Kitchen Concierge</h3>
@@ -341,20 +674,28 @@
 
 <div class="footer-container">
   <div class="footer-inner">
-    <div class="quick-prompts">
-      <button type="button" class="prompt-chip" data-prompt="Plan a 3-day Shabbat and Yom Tov menu for 8 guests with gluten-free options that hold up well on the blech.">
-        <span class="chip-icon">🍷</span>
-        <span>Plan 3-day holiday menu</span>
+    <!-- Dietary & Kitchen Setup Filter Toggles -->
+    <div class="controls-row">
+      <span class="control-label">Quick Filters:</span>
+      <button type="button" class="toggle-chip" data-pref="Gluten-Free">
+        <span class="toggle-icon">🌾</span> Gluten-Free
       </button>
-      <button type="button" class="prompt-chip" data-prompt="Which recipes and dishes can safely warm 18+ hours on the blech without drying out, and what liquid adjustments do I need?">
-        <span class="chip-icon">🔥</span>
-        <span>Blech 18+ hour warming guide</span>
+      <button type="button" class="toggle-chip" data-pref="Nut-Free">
+        <span class="toggle-icon">🥜</span> Nut-Free
       </button>
-      <button type="button" class="prompt-chip" data-prompt="How do halachic cooking rules differ between Shabbat and Yom Tov, including flame transfer and Eruv Tavshilin?">
-        <span class="chip-icon">📜</span>
-        <span>Shabbat vs. Yom Tov cooking rules</span>
+      <button type="button" class="toggle-chip" data-pref="Blech Setup">
+        <span class="toggle-icon">🔥</span> Blech Setup
+      </button>
+      <button type="button" class="toggle-chip" data-pref="Warming Drawer">
+        <span class="toggle-icon">♨️</span> Warming Drawer
       </button>
     </div>
+
+    <!-- Clickable Example Prompt Chips -->
+    <div class="quick-prompts" id="prompt-chips-container">
+      <!-- Populated dynamically based on selected holiday -->
+    </div>
+
     <form id="form">
       <input id="input" placeholder="Ask about recipes, blech schedules, or halachic cooking rules…" autocomplete="off" autofocus>
       <button id="send-btn">
@@ -365,13 +706,148 @@
   </div>
 </div>
 
+<div id="toast"></div>
+
 <script>
 const chatContainer = document.getElementById("chat-container");
 const log = document.getElementById("log");
 const form = document.getElementById("form");
 const input = document.getElementById("input");
+const holidaySelect = document.getElementById("holiday-select");
+const promptChipsContainer = document.getElementById("prompt-chips-container");
+const resetBtn = document.getElementById("reset-btn");
+const printPrepBtn = document.getElementById("print-prep-btn");
+const toast = document.getElementById("toast");
+
+// Setup marked.js options
+if (window.marked) {
+  marked.setOptions({
+    gfm: true,
+    breaks: true
+  });
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 2800);
+}
+
+// Holiday Prompt Presets
+const HOLIDAY_PROMPTS = {
+  "General Shabbat": [
+    { icon: "🍷", title: "Plan 3-day holiday menu", prompt: "Plan a 3-day Shabbat and Yom Tov menu for 8 guests with gluten-free options that hold up well on the blech." },
+    { icon: "🔥", title: "Blech 18+ hour warming guide", prompt: "Which recipes and dishes can safely warm 18+ hours on the blech without drying out, and what liquid adjustments do I need?" },
+    { icon: "📜", title: "Shabbat vs. Yom Tov cooking rules", prompt: "How do halachic cooking rules differ between Shabbat and Yom Tov, including flame transfer and Eruv Tavshilin?" }
+  ],
+  "Rosh Hashanah": [
+    { icon: "🍎", title: "Rosh Hashanah menu with Simanim", prompt: "Plan a multi-course Rosh Hashanah dinner featuring traditional Simanim, blech-friendly sweet brisket, and tzimmes." },
+    { icon: "🍯", title: "Day 1 to Day 2 cooking timeline", prompt: "Explain the rules and timeline for cooking on Rosh Hashanah Day 1 for Day 2 after nightfall using an existing flame." },
+    { icon: "🔥", title: "Blech placement for sweet roasts", prompt: "How should I position honey-glazed and sweet roasts on the blech to prevent scorch and caramel burning over 24 hours?" }
+  ],
+  "Sukkot": [
+    { icon: "🌿", title: "Make-ahead Sukkah warming menu", prompt: "Suggest a festive Sukkot meal menu that can be prepared in advance and carried warm to the Sukkah." },
+    { icon: "🍲", title: "Blech-friendly stuffed vegetables", prompt: "Give me authentic blech-friendly stuffed cabbage and pepper recipes that improve after hours in the warming drawer." },
+    { icon: "📜", title: "Eruv Tavshilin before Shabbat", prompt: "How do I perform Eruv Tavshilin when Sukkot Yom Tov leads directly into Shabbat?" }
+  ],
+  "Pesach": [
+    { icon: "🍷", title: "3-day Non-Kitniyot Pesach menu", prompt: "Plan a 3-day Pesach menu without Kitniyot that keeps well on the blech for both Seders and Yom Tov lunches." },
+    { icon: "🥔", title: "Pesach blech kugels & braises", prompt: "What potato kugels and braised meats hold up best on a Pesach blech without drying out?" },
+    { icon: "📜", title: "Warming dry vs. liquid on Pesach", prompt: "Review the halachot of reheating dry vs. liquid foods on Yom Tov and Shabbat during Pesach." }
+  ],
+  "Shavuot": [
+    { icon: "🧀", title: "Dairy & Pareve Shavuot menu", prompt: "Help me design a Shavuot meal plan with a dairy lunch, blech-safe pareve kugels, and a festive dinner." },
+    { icon: "🥞", title: "Make-ahead blintzes & casseroles", prompt: "What dairy casseroles and blintzes can be prepped in advance and safely warmed on Yom Tov?" },
+    { icon: "📜", title: "Waiting times between Meat & Dairy", prompt: "What are the halachic considerations for timing dairy and meat meals during multi-day Yom Tov?" }
+  ]
+};
+
+function updatePromptChips(holiday) {
+  const prompts = HOLIDAY_PROMPTS[holiday] || HOLIDAY_PROMPTS["General Shabbat"];
+  promptChipsContainer.innerHTML = "";
+  prompts.forEach(p => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "prompt-chip";
+    btn.setAttribute("data-prompt", p.prompt);
+    btn.innerHTML = `<span class="chip-icon">${p.icon}</span><span>${p.title}</span>`;
+    btn.addEventListener("click", () => {
+      input.value = p.prompt;
+      form.dispatchEvent(new Event("submit"));
+    });
+    promptChipsContainer.appendChild(btn);
+  });
+}
+
+holidaySelect.addEventListener("change", () => {
+  updatePromptChips(holidaySelect.value);
+  showToast(`Switched context to ${holidaySelect.value}`);
+});
+updatePromptChips("General Shabbat");
+
+// Dietary & Equipment Filter Toggles
+document.querySelectorAll(".toggle-chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    chip.classList.toggle("active");
+  });
+});
+
+function getActivePreferences() {
+  const active = [];
+  document.querySelectorAll(".toggle-chip.active").forEach(chip => {
+    active.push(chip.getAttribute("data-pref"));
+  });
+  return active;
+}
+
+// Reset / New Menu Handler
+resetBtn.addEventListener("click", async () => {
+  if (!confirm("Start a new menu planning session? This clears the current conversation.")) return;
+  try {
+    await fetch("/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: "web-user" })
+    });
+  } catch (e) {
+    console.error("Reset error:", e);
+  }
+  log.innerHTML = "";
+  const welcome = document.createElement("div");
+  welcome.className = "welcome-card";
+  welcome.innerHTML = `
+    <div class="welcome-icon">✡️</div>
+    <div class="welcome-text">
+      <h3>Shalom & Welcome to YomTov Kitchen Concierge</h3>
+      <p>Your intelligent culinary assistant for holiday meal planning, halachic blech & warming drawer guidance, allergy accommodations, and seasonal Jewish recipes.</p>
+    </div>
+  `;
+  log.appendChild(welcome);
+  showToast("✨ Started a new menu session!");
+});
+
+// Print Prep Sheet Handler
+printPrepBtn.addEventListener("click", () => {
+  const dateElem = document.getElementById("print-date-display");
+  if (dateElem) {
+    const now = new Date();
+    dateElem.textContent = `Generated on: ${now.toLocaleDateString()} at ${now.toLocaleTimeString()} | Context: ${holidaySelect.value}`;
+  }
+  window.print();
+});
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+// Blech & Dietary Badge formatter
+function formatBadges(html) {
+  return html
+    .replace(/\b(Center Zone|Center \(Boil\))\b/gi, '<span class="badge badge-hot">🔥 $1</span>')
+    .replace(/\b(Perimeter Zone|Perimeter \(Keep Warm\))\b/gi, '<span class="badge badge-warm">♨️ $1</span>')
+    .replace(/\b(Blech-Friendly|Blech-safe|18\+ Hours)\b/gi, '<span class="badge badge-blech">⏱️ $1</span>')
+    .replace(/\b(Pareve)\b/gi, '<span class="badge badge-pareve">Pareve</span>')
+    .replace(/\b(Meat|Fleishig)\b/gi, '<span class="badge badge-meat">Meat</span>')
+    .replace(/\b(Dairy|Milchig)\b/gi, '<span class="badge badge-dairy">Dairy</span>');
+}
 
 function bubble(who) {
   const row = el("div", "msg-row " + who);
@@ -383,10 +859,36 @@ function bubble(who) {
   }
   
   const content = el("div", "msg-content");
+  
+  // Header line with sender and action buttons
+  const headerLine = el("div", "msg-header-line");
   const sender = el("div", "sender-name", who === "agent" ? "Concierge" : "You");
+  headerLine.appendChild(sender);
+
+  if (who === "agent") {
+    const actions = el("div", "msg-actions");
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "msg-action-btn";
+    copyBtn.title = "Copy response to clipboard";
+    copyBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:0.95rem;">content_copy</span><span>Copy</span>`;
+    copyBtn.addEventListener("click", () => {
+      const bubbleNode = row.querySelector(".bubble");
+      if (bubbleNode) {
+        navigator.clipboard.writeText(bubbleNode.innerText.trim());
+        copyBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:0.95rem; color:#166534;">check</span><span style="color:#166534;">Copied!</span>`;
+        setTimeout(() => {
+          copyBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:0.95rem;">content_copy</span><span>Copy</span>`;
+        }, 2000);
+      }
+    });
+    actions.appendChild(copyBtn);
+    headerLine.appendChild(actions);
+  }
+
   const b = el("div", "bubble");
   
-  content.appendChild(sender);
+  content.appendChild(headerLine);
   content.appendChild(b);
   row.appendChild(avatar);
   row.appendChild(content);
@@ -407,7 +909,6 @@ function setTyping(b) {
  * textContent and image URLs are validated, so agent output can't inject HTML.
  * -------------------------------------------------------------------------- */
 
-// A "bound value" is usually {literalString: "..."}; we only support literals.
 function boundStr(v) {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -415,7 +916,6 @@ function boundStr(v) {
   return "";
 }
 
-// child ids of a component's props: single `child` and/or `children.explicitList`.
 function childIds(props) {
   const ids = [];
   if (props && typeof props.child === "string") ids.push(props.child);
@@ -424,11 +924,10 @@ function childIds(props) {
   return ids;
 }
 
-// A2UI icon names are camelCase (locationOn); Material Symbols wants snake_case.
 function iconName(n) { return String(n || "").replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/\s+/g, "_").toLowerCase(); }
 
 function buildNode(id, comps, seen) {
-  if (!id || seen.has(id)) return null;   // missing / cycle guard
+  if (!id || seen.has(id)) return null;
   seen.add(id);
   const spec = comps[id];
   if (!spec || typeof spec !== "object") return null;
@@ -454,26 +953,25 @@ function buildNode(id, comps, seen) {
       const hint = String(props.usageHint || "body").toLowerCase();
       if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(hint)) t.classList.add("a2-" + hint);
       else if (hint === "caption") t.classList.add("a2-caption");
-      t.textContent = boundStr(props.text);
+      const rawText = boundStr(props.text);
+      t.innerHTML = formatBadges(rawText);
       return t;
     }
     case "Divider":
       return el("hr", "a2divider");
     case "Image": {
       const src = boundStr(props.url || props.src);
-      if (!/^https?:\/\//i.test(src)) return null;   // only allow safe URLs
+      if (!/^https?:\/\//i.test(src)) return null;
       const img = el("img", "a2img"); img.src = src; img.alt = boundStr(props.alt) || ""; return img;
     }
     case "Icon": {
       const s = el("span", "material-symbols-outlined"); s.textContent = iconName(boundStr(props.name) || props.name); return s;
     }
     default:
-      return null;   // unknown component -> skipped (text fallback covers content)
+      return null;
   }
 }
 
-// Render one or more A2UI messages (beginRendering + surfaceUpdate) into `container`.
-// Returns true if anything was drawn.
 function renderSurface(messages, container) {
   const comps = {};
   const roots = [];
@@ -483,7 +981,7 @@ function renderSurface(messages, container) {
     if (su && Array.isArray(su.components)) for (const c of su.components) if (c && c.id && c.component) comps[c.id] = c.component;
   }
   let rootIds = roots.filter(r => comps[r]);
-  if (rootIds.length === 0) {   // no valid root given -> infer un-referenced components
+  if (rootIds.length === 0) {
     const referenced = new Set();
     for (const id in comps) { const spec = comps[id]; childIds(spec[Object.keys(spec)[0]] || {}).forEach(c => referenced.add(c)); }
     rootIds = Object.keys(comps).filter(id => !referenced.has(id));
@@ -493,7 +991,6 @@ function renderSurface(messages, container) {
   return drew;
 }
 
-// Fallback: pull every Text value out of the messages as plain text.
 function flattenText(messages) {
   const out = [];
   for (const m of messages) {
@@ -504,42 +1001,72 @@ function flattenText(messages) {
 }
 
 function renderReply(b, parts) {
-  b.textContent = "";   // clear loading placeholder
+  b.textContent = "";
   const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
   const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
 
-  const textStr = texts.join("\n").trim();
-  if (textStr) b.appendChild(el("div", null, textStr));
+  const textStr = texts.join("\n\n").trim();
+  if (textStr) {
+    const markdownWrapper = el("div", "markdown-body");
+    if (window.marked) {
+      const parsed = marked.parse(textStr);
+      markdownWrapper.innerHTML = formatBadges(parsed);
+    } else {
+      markdownWrapper.textContent = textStr;
+    }
+    b.appendChild(markdownWrapper);
+  }
 
   if (a2ui.length) {
     b.classList.add("rich");
-    if (!renderSurface(a2ui, b)) b.appendChild(el("div", null, flattenText(a2ui) || "(no card content)"));
+    if (!renderSurface(a2ui, b)) {
+      const fallback = flattenText(a2ui);
+      const markdownWrapper = el("div", "markdown-body");
+      markdownWrapper.innerHTML = formatBadges(window.marked ? marked.parse(fallback) : fallback);
+      b.appendChild(markdownWrapper);
+    }
   }
   if (!b.childNodes.length) b.textContent = "(no response)";
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-// Clickable example prompt chips handler
-document.querySelectorAll(".prompt-chip").forEach(chip => {
-  chip.addEventListener("click", () => {
-    const promptText = chip.getAttribute("data-prompt");
-    if (!promptText) return;
-    input.value = promptText;
-    form.dispatchEvent(new Event("submit"));
-  });
-});
-
-// The proxy returns { parts: [{kind:"text",text} | {kind:"a2ui",data}] }.
+// Chat Form Submit Handler
 form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  const text = input.value.trim();
-  if (!text) return;
-  bubble("user").textContent = text;
+  const rawText = input.value.trim();
+  if (!rawText) return;
+
+  // Gather active preferences & holiday context
+  const activePrefs = getActivePreferences();
+  const holiday = holidaySelect.value;
+  
+  // Display the user's natural query in the bubble
+  bubble("user").textContent = rawText;
   input.value = "";
+  
   const b = bubble("agent");
   setTyping(b);
+
+  // Build enhanced payload for agent if preferences or holiday are specified
+  let contextTags = [];
+  if (holiday && holiday !== "General Shabbat") {
+    contextTags.push(`Holiday: ${holiday}`);
+  }
+  if (activePrefs.length > 0) {
+    contextTags.push(`Preferences: ${activePrefs.join(", ")}`);
+  }
+
+  let fullMessage = rawText;
+  if (contextTags.length > 0 && !rawText.toLowerCase().includes(holiday.toLowerCase())) {
+    fullMessage += `\n[Context: ${contextTags.join(" | ")}]`;
+  }
+
   try {
-    const res = await fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: fullMessage, user_id: "web-user" })
+    });
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
