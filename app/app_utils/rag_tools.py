@@ -22,8 +22,7 @@ Grounds the YomTov Kitchen Concierge on scraped kosher recipes from:
 
 import os
 from pathlib import Path
-import vertexai
-from vertexai.preview import rag
+import agentplatform
 
 PROJECT_ID = "qwiklabs-gcp-04-ded35b1abcfb"
 LOCATION = "europe-west4"
@@ -47,11 +46,12 @@ def search_recipe_rag_corpus(query: str) -> str:
         Grounded recipe excerpts, authors, ingredients, and instructions from the RAG corpus.
     """
     try:
-        vertexai.init(project=PROJECT_ID, location=LOCATION)
-        response = rag.retrieval_query(
-            text=query,
-            rag_resources=[rag.RagResource(rag_corpus=CORPUS_NAME)],
-            rag_retrieval_config=rag.RagRetrievalConfig(top_k=3),
+        client = agentplatform.Client(project=PROJECT_ID, location=LOCATION)
+        response = client.rag.retrieve_contexts(
+            vertex_rag_store=dict(
+                rag_resources=[dict(rag_corpus=CORPUS_NAME)]
+            ),
+            query=dict(text=query, similarity_top_k=3),
         )
         contexts = getattr(response.contexts, "contexts", [])
         if not contexts:
