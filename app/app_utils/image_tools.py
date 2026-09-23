@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Hardcoded project ID and public bucket name as required per platform constraints
 PROJECT_ID = "qwiklabs-gcp-04-ded35b1abcfb"
-BUCKET_NAME = "yomtov-rag-qwiklabs-gcp-04-ded35b1abcfb"
+BUCKET_NAME = "yomtov-kitchen-media-qwiklabs-gcp-04-ded35b1abcfb"
 MODEL_NAME = "gemini-3.1-flash-lite-image"
 LOCATION = "global"
 
