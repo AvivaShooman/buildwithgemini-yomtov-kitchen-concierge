@@ -21,6 +21,9 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.apps import App
+from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.schema.manager import A2uiSchemaManager
+from app.a2ui_utils import a2ui_callback
 import agentplatform
 from google.adk.code_executors.agent_engine_sandbox_code_executor import (
     AgentEngineSandboxCodeExecutor,
@@ -66,7 +69,7 @@ from app.app_utils.image_tools import generate_holiday_image
 
 MODEL = "gemini-2.5-flash"
 
-AGENT_INSTRUCTION = (
+AGENT_ROLE_DESCRIPTION = (
     "You are YomTov Kitchen Concierge, an expert culinary assistant specializing in Jewish holiday "
     "and Shabbat meal planning, halachic cooking rules, blech and warming drawer management, and grocery coordination.\n\n"
     "Core Capabilities & Guidelines:\n"
@@ -113,6 +116,35 @@ AGENT_INSTRUCTION = (
     "calculating liquid evaporation compensation over long warming periods (12-36 hours on a blech), or determining multi-day prep timelines—"
     "call the `run_sandbox_code` tool with Python code or write executable Python code in ```python ... ``` blocks with print statements.\n"
     "   - The code will be securely executed in the Agent Engine sandbox and you should present the accurate computed results."
+)
+
+schema_manager = A2uiSchemaManager(
+    version="0.8",
+    catalogs=[BasicCatalog.get_config("0.8")],
+)
+
+AGENT_INSTRUCTION = schema_manager.generate_system_prompt(
+    role_description=AGENT_ROLE_DESCRIPTION,
+    workflow_description="Analyze the request and return structured UI when appropriate.",
+    ui_description=(
+        "Keep every surface tiny and flat: ONE Card > ONE Column > a few Text rows. "
+        "Never nest a Card inside a Card. "
+        "Use ONLY these components: Card, Column, Row, Text, and Image. Do not use "
+        "Table or Heading (unsupported), or Buttons, actions, or forms (they do "
+        "nothing in adk web). "
+        "You may include one Image component, but only when you have a public https "
+        "URL for the image (for example the URL an image tool returns after uploading "
+        "to a public bucket). Set the Image url to that exact https link, for example "
+        '{"Image": {"url": {"literalString": "https://..."}}}. Never point an '
+        "Image at a bare filename, an artifact name, or a non-http(s) path. If you do "
+        "not have a public URL, add a short Text line noting the image instead. "
+        "No markdown in text; use the usageHint property ('h1', 'h2', 'body') for "
+        "headings and emphasis. "
+        "Output ONLY the raw A2UI JSON array — no prose, and never wrap it in "
+        "<a2a_datapart_json> tags or 'kind'/'data'/'metadata' objects."
+    ),
+    include_schema=True,
+    include_examples=True,
 )
 
 
@@ -217,6 +249,7 @@ root_agent = Agent(
         get_weather,
         get_current_time,
     ],
+    after_model_callback=a2ui_callback,
     after_agent_callback=generate_memories_callback,
 )
 
