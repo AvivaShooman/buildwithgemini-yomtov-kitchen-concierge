@@ -259,9 +259,21 @@ def run_sandbox_code(code: str) -> str:
     return result.stdout or "Code executed successfully with no output."
 
 
+class VertexGemini(Gemini):
+    """Gemini model configured to always use Vertex AI in this GCP project and region."""
+
+    @property
+    def api_client(self):
+        from google.genai import Client
+
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "qwiklabs-gcp-04-ded35b1abcfb")
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-east1")
+        return Client(vertexai=True, project=project, location=location)
+
+
 root_agent = Agent(
     name="root_agent",
-    model=Gemini(
+    model=VertexGemini(
         model=MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
