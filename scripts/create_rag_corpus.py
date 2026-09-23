@@ -16,9 +16,7 @@
 
 import sys
 import time
-import vertexai
-from vertexai.preview import rag
-from vertexai.preview.rag.utils import resources as rr
+import agentplatform
 
 PROJECT_ID = "qwiklabs-gcp-04-ded35b1abcfb"
 LOCATION = "us-central1"
@@ -33,17 +31,17 @@ PARSING_PROMPT = (
 
 
 def main():
-    print(f"Initializing Vertex AI (project={PROJECT_ID}, location={LOCATION})...")
-    vertexai.init(project=PROJECT_ID, location=LOCATION)
+    print(f"Initializing agentplatform.Client (project={PROJECT_ID}, location={LOCATION})...")
+    client = agentplatform.Client(project=PROJECT_ID, location=LOCATION)
 
     # 1. Switch the region's RAG managed DB to serverless mode (project-level, once).
     cfg_name = f"projects/{PROJECT_ID}/locations/{LOCATION}/ragEngineConfig"
     print(f"Configuring RAG Engine for serverless mode: {cfg_name}...")
     try:
-        rag.update_rag_engine_config(
-            rag_engine_config=rag.RagEngineConfig(
+        client.rag.update_config(
+            rag_engine_config=dict(
                 name=cfg_name,
-                rag_managed_db_config=rag.RagManagedDbConfig(mode=rr.Serverless()),
+                rag_managed_db_config=dict(mode="SERVERLESS"),
             )
         )
         print("  -> RAG engine config set to serverless mode.")
@@ -53,7 +51,7 @@ def main():
     # Check if corpus already exists
     corpus = None
     try:
-        corpora = rag.list_corpora()
+        corpora = client.rag.list_corpora()
         for c in corpora:
             if getattr(c, "display_name", "") == CORPUS_DISPLAY_NAME:
                 corpus = c
@@ -65,10 +63,10 @@ def main():
     # 2. Create the corpus if not found
     if corpus is None:
         print(f"Creating corpus '{CORPUS_DISPLAY_NAME}' with text-embedding-005...")
-        corpus = rag.create_corpus(
+        corpus = client.rag.create_corpus(
             display_name=CORPUS_DISPLAY_NAME,
             description="Kosher holiday recipes from Melinda Strauss, Naomi Nachman, and Ruhama's Food",
-            embedding_model_config=rag.EmbeddingModelConfig(
+            embedding_model_config=dict(
                 publisher_model="publishers/google/models/text-embedding-005"
             ),
         )
@@ -79,13 +77,13 @@ def main():
     # 3. Import + parse + chunk + embed
     print(f"Importing and indexing {GCS_PATH} into corpus {corpus_resource_name}...")
     try:
-        resp = rag.import_files(
+        resp = client.rag.import_files(
             corpus_name=corpus_resource_name,
             paths=[GCS_PATH],
-            transformation_config=rag.TransformationConfig(
-                chunking_config=rag.ChunkingConfig(chunk_size=512, chunk_overlap=100)
+            transformation_config=dict(
+                chunking_config=dict(chunk_size=512, chunk_overlap=100)
             ),
-            llm_parser=rag.LlmParserConfig(
+            llm_parser=dict(
                 model_name="gemini-2.5-flash",
                 custom_parsing_prompt=PARSING_PROMPT,
             ),
@@ -94,11 +92,11 @@ def main():
     except Exception as e:
         print(f"Import with LLM parser returned: {e}")
         print("Attempting standard import without LLM parser...")
-        resp = rag.import_files(
+        resp = client.rag.import_files(
             corpus_name=corpus_resource_name,
             paths=[GCS_PATH],
-            transformation_config=rag.TransformationConfig(
-                chunking_config=rag.ChunkingConfig(chunk_size=512, chunk_overlap=100)
+            transformation_config=dict(
+                chunking_config=dict(chunk_size=512, chunk_overlap=100)
             ),
         )
         print(f"  -> Standard import complete! Imported files: {getattr(resp, 'imported_rag_files_count', 'unknown')}")
@@ -115,10 +113,11 @@ def main():
     for q in test_queries:
         print(f"\n--- Query: '{q}' ---")
         try:
-            res = rag.retrieval_query(
-                text=q,
-                rag_resources=[rag.RagResource(rag_corpus=corpus_resource_name)],
-                rag_retrieval_config=rag.RagRetrievalConfig(top_k=2),
+            res = client.rag.retrieve_contexts(
+                vertex_rag_store=dict(
+                    rag_resources=[dict(rag_corpus=corpus_resource_name)]
+                ),
+                query=dict(text=q, similarity_top_k=2),
             )
             contexts = getattr(res.contexts, "contexts", [])
             print(f"Found {len(contexts)} matched contexts:")

@@ -21,13 +21,25 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.apps import App
+import agentplatform
 from google.adk.code_executors.agent_engine_sandbox_code_executor import (
     AgentEngineSandboxCodeExecutor,
 )
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
+from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
 from google.adk.models import Gemini
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.genai import types
+
+# Ensure all ADK components use agentplatform.Client rather than deprecated vertexai.Client
+AgentEngineSandboxCodeExecutor._get_api_client = (
+    lambda self: agentplatform.Client(project=self._project_id, location=self._location)
+)
+def _memory_bank_api_client(self):
+    if self._express_mode_api_key:
+        return agentplatform.Client(api_key=self._express_mode_api_key).aio
+    return agentplatform.Client(project=self._project, location=self._location).aio
+VertexAiMemoryBankService._get_api_client = _memory_bank_api_client
 
 load_dotenv()
 
