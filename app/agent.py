@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import datetime
 from zoneinfo import ZoneInfo
 
@@ -20,6 +21,10 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.apps import App
+from google.adk.code_executors.agent_engine_sandbox_code_executor import (
+    AgentEngineSandboxCodeExecutor,
+)
+from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.models import Gemini
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.genai import types
@@ -89,7 +94,13 @@ AGENT_INSTRUCTION = (
     "or a visual diagram/timeline for blech warming or meal schedules, you MUST call `generate_holiday_image`.\n"
     "   - The tool generates an image using gemini-3.1-flash-lite-image in the global region, saves it as an artifact in the session, "
     "and returns a public Cloud Storage URL (https://storage.googleapis.com/...).\n"
-    "   - Always embed the returned public image URL in your final response using markdown syntax: `![Description](https://storage.googleapis.com/...)`."
+    "   - Always embed the returned public image URL in your final response using markdown syntax: `![Description](https://storage.googleapis.com/...)`.\n\n"
+    "8. AGENT PLATFORM CODE EXECUTION SANDBOX (AgentEngineSandboxCodeExecutor):\n"
+    "   - You have access to a secure Python code execution sandbox powered by Vertex AI Agent Engine (`AgentEngineSandboxCodeExecutor`).\n"
+    "   - Whenever you need to perform calculations—such as computing recipe ingredient scaling for large guest counts, "
+    "calculating liquid evaporation compensation over long warming periods (12-36 hours on a blech), or determining multi-day prep timelines—"
+    "call the `run_sandbox_code` tool with Python code or write executable Python code in ```python ... ``` blocks with print statements.\n"
+    "   - The code will be securely executed in the Agent Engine sandbox and you should present the accurate computed results."
 )
 
 
@@ -135,6 +146,38 @@ def get_current_time(query: str) -> str:
     return f"The current time for query {query} is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
 
 
+SANDBOX_RESOURCE_NAME = os.environ.get(
+    "SANDBOX_RESOURCE_NAME",
+    "projects/821049907373/locations/us-east1/reasoningEngines/3128499808138952704/sandboxEnvironments/7109864397664681984",
+)
+AGENT_ENGINE_RESOURCE_NAME = "projects/821049907373/locations/us-east1/reasoningEngines/3128499808138952704"
+
+sandbox_executor = AgentEngineSandboxCodeExecutor(
+    sandbox_resource_name=SANDBOX_RESOURCE_NAME,
+    agent_engine_resource_name=AGENT_ENGINE_RESOURCE_NAME,
+)
+
+
+def run_sandbox_code(code: str) -> str:
+    """Executes Python code safely in the Vertex AI Agent Engine sandbox environment.
+
+    Use this tool for precise mathematical calculations, such as scaling recipe portions
+    for large guest counts, calculating liquid evaporation compensation over long warming
+    periods (12-36 hours on a blech), or computing multi-day holiday kitchen prep timelines.
+
+    Args:
+        code: A string containing valid Python code to execute. Standard print statements
+              will be captured and returned in the output.
+
+    Returns:
+        The execution output (stdout) or error messages (stderr) from the sandbox.
+    """
+    result = sandbox_executor.execute_code(None, CodeExecutionInput(code=code))
+    if result.stderr:
+        return f"Output:\n{result.stdout}\nErrors:\n{result.stderr}"
+    return result.stdout or "Code executed successfully with no output."
+
+
 root_agent = Agent(
     name="root_agent",
     model=Gemini(
@@ -142,6 +185,7 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=AGENT_INSTRUCTION,
+    code_executor=sandbox_executor,
     tools=[
         PreloadMemoryTool(),
         save_profile,
@@ -157,6 +201,7 @@ root_agent = Agent(
         calculate_blech_schedule,
         search_recipe_rag_corpus,
         generate_holiday_image,
+        run_sandbox_code,
         get_weather,
         get_current_time,
     ],

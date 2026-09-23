@@ -22,8 +22,8 @@ from google.genai import types
 
 
 @pytest.mark.asyncio
-async def test_agent_invokes_image_generation():
-    """Verify the agent calls generate_holiday_image and outputs the public image URL."""
+async def test_agent_executes_code_in_sandbox():
+    """Verify the agent can execute code in the sandbox to calculate blech evaporation."""
     session_service = InMemorySessionService()
     memory_service = get_memory_service()
     artifact_service = InMemoryArtifactService()
@@ -39,13 +39,16 @@ async def test_agent_invokes_image_generation():
         user_id="test_user",
     )
 
-    query = "Please generate an image preview of a festive golden potato kugel on a Yom Tov platter."
+    query = (
+        "Use run_sandbox_code to compute the exact liquid adjustment "
+        "needed for brisket warming for 24 hours at 0.05 cups/hour."
+    )
     content = types.Content(
         parts=[types.Part.from_text(text=query)],
         role="user",
     )
 
-    chunks = []
+    outputs = []
     function_calls = []
     async for event in runner.run_async(
         session_id=session.id,
@@ -55,9 +58,9 @@ async def test_agent_invokes_image_generation():
         if event.content and event.content.parts:
             for part in event.content.parts:
                 if part.text:
-                    chunks.append(part.text)
+                    outputs.append(part.text)
                 if part.function_call:
                     function_calls.append(part.function_call.name)
 
-    full_response = "".join(chunks)
-    assert "generate_holiday_image" in function_calls or "storage.googleapis.com" in full_response or "kugel" in full_response.lower()
+    full_output = " ".join(outputs)
+    assert "run_sandbox_code" in function_calls or "1.2" in full_output
